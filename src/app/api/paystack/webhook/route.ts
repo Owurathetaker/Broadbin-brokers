@@ -48,6 +48,8 @@ export async function POST(req: Request) {
 
   // Raw body required for signature verification
   const rawBody = await req.text();
+  
+  console.log("PAYSTACK WEBHOOK HIT", new Date().toISOString());
 
   const hash = crypto.createHmac("sha512", secretKey).update(rawBody).digest("hex");
 
