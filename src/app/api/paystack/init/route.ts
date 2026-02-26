@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     if (!secretKey) {
       return NextResponse.json(
-        { error: "PAYSTACK_SECRET_KEY is not set yet. Add it to .env.local first." },
+        { error: "PAYSTACK_SECRET_KEY is not set. Add it to your Vercel Environment Variables." },
         { status: 400 }
       );
     }
@@ -27,19 +27,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
-    const amountPesewas = Math.round(Number(body.feeGhs) * 100);
+    const fee = Number(body.feeGhs);
+    if (!Number.isFinite(fee) || fee <= 0) {
+      return NextResponse.json({ error: "Invalid fee amount." }, { status: 400 });
+    }
 
-    // We need an email for Paystack init. If buyer hasn't provided one yet,
-    // use a placeholder and capture email on /confirmed.
-    const placeholderEmail = "booking@broadbinbrokers.local";
+    const amountPesewas = Math.round(fee * 100);
+
+    // Paystack requires a valid email on initialize.
+    // We collect buyer email after payment, so use a real fallback email here.
+    const placeholderEmail = "broadbinbiz@gmail.com";
 
     const metadata = {
-      fullName: body.fullName,
-      phone: body.phone,
-      area: body.area || "",
+      fullName: body.fullName.trim(),
+      phone: body.phone.trim(),
+      area: (body.area || "").trim(),
       date: body.date,
       time: body.time,
       agreedToTerms: true,
+      feeGhs: fee,
+      kind: "inspection_booking",
     };
 
     const resp = await fetch("https://api.paystack.co/transaction/initialize", {
@@ -60,7 +67,10 @@ export async function POST(req: Request) {
     const data = await resp.json();
 
     if (!resp.ok) {
-      return NextResponse.json({ error: data?.message || "Paystack init failed.", raw: data }, { status: 400 });
+      return NextResponse.json(
+        { error: data?.message || "Paystack init failed.", raw: data },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({
